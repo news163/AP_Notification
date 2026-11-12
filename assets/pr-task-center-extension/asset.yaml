@@ -1,0 +1,22 @@
+apiVersion: asset.sap/v1
+kind: Asset
+
+metadata:
+  name: pr-task-center-extension
+  description: Agent extension for the Purchase Requisition Agent that registers a post-hook n8n workflow to create a SAP Task Center approval task after every successful PR creation.
+  version: 1.0.0
+
+type: agent-extension
+
+sourceRoot: "."
+
+provides:
+  extensions:
+    - descriptorFile: extension.yaml
+      name: pr-task-center-extension
+
+requires:
+  - name: purchase-requisition-agent
+    kind: agent
+    version: "1.0.14"
+    ordId: sap.agtrefapp:agent:purchase-requisition-agent:v1

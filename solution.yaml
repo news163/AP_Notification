@@ -1,0 +1,11 @@
+apiVersion: solution.sap/v1
+kind: Solution
+
+metadata:
+  name: pr-task-center-hook-ed512
+  version: 1.0.0
+  description: Agent extension for the Purchase Requisition Agent that adds a post-hook n8n workflow to create a SAP Task Center approval task after every successful PR creation.
+
+assets:
+  - ref: ./assets/workflows/pr-task-center-notification-workflow/asset.yaml
+  - ref: ./assets/pr-task-center-extension/asset.yaml

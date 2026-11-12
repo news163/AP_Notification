@@ -1,0 +1,13 @@
+_schema-version: "0.1.0"
+kind: Extension
+
+metadata:
+  name: pr-task-center-extension
+
+agent:
+  ordId: sap.agtrefapp:agent:purchase-requisition-agent:v1
+
+capabilityImplementations:
+  - capabilityId: default
+    instruction: |
+      After successfully creating a purchase requisition, a post-hook workflow will automatically create a SAP Task Center approval task for the approving manager. This is a side-effect-only post-processing step and does not change how you create, search, or manage purchase requisitions or purchase orders. Continue to follow your standard behaviour for all procurement operations.

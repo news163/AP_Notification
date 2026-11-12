@@ -1,0 +1,104 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "pr-task-center-notification-workflow",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/pr-task-center-hook-ed512/pr-task-center-notification-workflow/pr-creation-post-hook": {
+      "post": {
+        "summary": "Receives an A2A post-hook message after a purchase requisition is created and creates a SAP Task Center approval task.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["messageId", "role", "parts"],
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "description": "Unique identifier of the A2A message"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "description": "A2A message kind",
+                    "enum": ["message"]
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Role of the message sender",
+                    "enum": ["user", "agent"]
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "description": "A2A task identifier"
+                  },
+                  "contextId": {
+                    "type": "string",
+                    "description": "A2A context identifier"
+                  },
+                  "parts": {
+                    "type": "array",
+                    "description": "Message parts carrying the agent response including PR details",
+                    "items": {
+                      "type": "object",
+                      "required": ["kind"],
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": ["text", "data", "file"],
+                          "description": "Part type"
+                        },
+                        "text": {
+                          "type": "string",
+                          "description": "Text content of the part (present when kind is text)"
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "Structured data payload (present when kind is data)",
+                          "additionalProperties": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Valid A2A response message confirming the post-hook processed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["messageId", "role", "parts"],
+                  "properties": {
+                    "messageId": {
+                      "type": "string",
+                      "description": "Echo of the incoming message ID"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": ["agent"],
+                      "description": "Always agent for post-hook responses"
+                    },
+                    "parts": {
+                      "type": "array",
+                      "description": "Empty array — side-effect-only hook returns no additional content",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

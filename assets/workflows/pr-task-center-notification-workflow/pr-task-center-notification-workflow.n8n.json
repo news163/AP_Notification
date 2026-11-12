@@ -1,0 +1,278 @@
+{
+    "name": "pr-task-center-notification-workflow",
+    "description": "Post-hook workflow for the Purchase Requisition Agent. Triggered after a PR is successfully created; extracts PR details from the incoming A2A message and creates a SAP Task Center approval task assigned to the approving manager. On Task Center failure, continues silently via continueRegularOutput. A Switch node routes the task outcome; both branches return a valid A2A response with empty parts.",
+    "nodes": [
+        {
+            "parameters": {
+                "content": "## PR Task Center Post-Hook\nThis workflow is triggered by the agent runtime **after** a purchase requisition is successfully created.\n\n- Extracts PR details (PR number, requester, line items, total, manager email) from the A2A message\n- Creates a SAP Task Center task for the approving manager\n- `onError: continueRegularOutput` — Task Center failures are silent\n- Switch routes the task outcome (approved/rejected/fallback)\n- All branches return a valid A2A response with empty parts",
+                "height": 200,
+                "width": 460,
+                "color": 5
+            },
+            "id": "bad98c84-b577-4893-9d53-ab621f204f57",
+            "name": "Workflow Overview",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                -620,
+                -280
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "pr-task-center-hook-ed512/pr-task-center-notification-workflow/pr-creation-post-hook",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "76b82d7d-72f6-42cb-9b1f-049279e9608d",
+            "name": "PR Creation Post-Hook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                -620,
+                0
+            ],
+            "webhookId": "11fd88f6-e347-4862-beb5-e2de2e63d3e8"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extract PR details and A2A context from the incoming post-hook message\nconst body = $input.first().json.body || {};\nconst messageId = body.messageId || ('post-hook-' + Date.now());\nconst parts = body.parts || [];\n\n// Collect text from all A2A parts\nlet prText = '';\nfor (const part of parts) {\n  if (part.kind === 'text' && part.text) {\n    prText += part.text + ' ';\n  } else if (part.kind === 'data' && part.data) {\n    prText += JSON.stringify(part.data) + ' ';\n  }\n}\nprText = prText.trim();\n\n// Extract individual PR fields using regex; fall back to 'not provided'\nconst extractField = (patterns, text) => {\n  for (const pattern of patterns) {\n    const match = text.match(pattern);\n    if (match && match[1]) return match[1].trim();\n  }\n  return 'not provided';\n};\n\nconst prNumber = extractField([\n  /PR[\\s#:]+([A-Z0-9-]+)/i,\n  /purchase requisition[:\\s]+([A-Z0-9-]+)/i,\n  /requisition[\\s#:]+([A-Z0-9-]+)/i\n], prText);\n\nconst requester = extractField([\n  /requester[:\\s]+([^,\\n]+)/i,\n  /requested by[:\\s]+([^,\\n]+)/i,\n  /created by[:\\s]+([^,\\n]+)/i\n], prText);\n\nconst totalValue = extractField([\n  /total[:\\s]+([\\d.,]+\\s*[A-Z]{0,3})/i,\n  /amount[:\\s]+([\\d.,]+\\s*[A-Z]{0,3})/i,\n  /value[:\\s]+([\\d.,]+\\s*[A-Z]{0,3})/i\n], prText);\n\nconst lineItems = extractField([\n  /line items?[:\\s]+([^\\n]+)/i,\n  /items?[:\\s]+([^\\n]+)/i,\n  /materials?[:\\s]+([^\\n]+)/i\n], prText);\n\nconst approvingManagerEmail = extractField([\n  /approving manager[:\\s]+([\\w.+-]+@[\\w.-]+\\.[a-z]{2,})/i,\n  /manager email[:\\s]+([\\w.+-]+@[\\w.-]+\\.[a-z]{2,})/i,\n  /approve[:\\s]+([\\w.+-]+@[\\w.-]+\\.[a-z]{2,})/i\n], prText);\n\nreturn {\n  messageId,\n  prNumber,\n  requester,\n  totalValue,\n  lineItems,\n  approvingManagerEmail,\n  rawText: prText\n};"
+            },
+            "id": "7c8f3044-f4fa-45e8-87a7-219c4ec786d9",
+            "name": "Extract PR Details",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -380,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "subject": "=Purchase Requisition Approval Required: {{ $json.prNumber !== 'not provided' ? $json.prNumber : 'New PR' }}",
+                "description": "=A new purchase requisition has been created and requires your approval.\n\nPR Number: {{ $json.prNumber }}\nRequester: {{ $json.requester }}\nLine Items: {{ $json.lineItems }}\nTotal Value: {{ $json.totalValue }}\n\nPlease review and approve or reject this purchase requisition in SAP Task Center.",
+                "priority": "MEDIUM",
+                "recipients": {
+                    "recipientValues": [
+                        {
+                            "userId": "={{ $json.approvingManagerEmail }}"
+                        }
+                    ]
+                },
+                "taskDefinition": {
+                    "definitionName": "Create PR Approval Task"
+                },
+                "customAttributeDefinitions": {
+                    "attributes": [
+                        {
+                            "value": "={{ $json.prNumber }}",
+                            "code": "prNumber",
+                            "name": "PR Number",
+                            "type": "STRING"
+                        },
+                        {
+                            "value": "={{ $json.requester }}",
+                            "code": "requester",
+                            "name": "Requester",
+                            "type": "STRING"
+                        },
+                        {
+                            "value": "={{ $json.totalValue }}",
+                            "code": "totalValue",
+                            "name": "Total Value",
+                            "type": "STRING"
+                        },
+                        {
+                            "value": "={{ $json.lineItems }}",
+                            "code": "lineItemsSummary",
+                            "name": "Line Items Summary",
+                            "type": "STRING"
+                        }
+                    ]
+                }
+            },
+            "id": "802a16ec-b20f-4929-b83d-1a95e3fd9760",
+            "name": "Create PR Approval Task",
+            "type": "CUSTOM.sapTaskCenter",
+            "typeVersion": 1,
+            "position": [
+                -140,
+                0
+            ],
+            "onError": "continueRegularOutput"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.result.response }}",
+                                        "rightValue": "approved",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "switch-approved"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "approved"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.result.response }}",
+                                        "rightValue": "rejected",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "switch-rejected"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "rejected"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "extra"
+                }
+            },
+            "id": "f1167bcd-a821-4b45-889f-12632f0693ee",
+            "name": "Route Task Outcome",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.2,
+            "position": [
+                100,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Build valid A2A response — side-effect-only post-hook, empty parts\nconst messageId = $('Extract PR Details').first().json.messageId || ('post-hook-' + Date.now());\nreturn { messageId, role: 'agent', parts: [] };"
+            },
+            "id": "6d31519c-d0e5-475c-8d17-fcaf8bfd09e6",
+            "name": "Build A2A Response",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                380,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}",
+                "options": {
+                    "responseCode": 200
+                }
+            },
+            "id": "bad98c84-b577-4893-9d53-ab621f204f58",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.5,
+            "position": [
+                620,
+                0
+            ]
+        }
+    ],
+    "connections": {
+        "PR Creation Post-Hook": {
+            "main": [
+                [
+                    {
+                        "node": "Extract PR Details",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract PR Details": {
+            "main": [
+                [
+                    {
+                        "node": "Create PR Approval Task",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Create PR Approval Task": {
+            "main": [
+                [
+                    {
+                        "node": "Route Task Outcome",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Route Task Outcome": {
+            "main": [
+                [
+                    {
+                        "node": "Build A2A Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Build A2A Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Build A2A Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build A2A Response": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "active": true,
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "id": "r1yxjDcpIsqfQO0f"
+}

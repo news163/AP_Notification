@@ -1,0 +1,28 @@
+apiVersion: asset.sap/v1
+kind: Asset
+
+metadata:
+  name: pr-task-center-notification-workflow
+  description: Post-hook n8n workflow that creates a SAP Task Center approval task after a purchase requisition is successfully created by the Purchase Requisition Agent.
+  version: 1.0.0
+  type: n8nworkflow
+
+projectVersion: "1"
+sourceRoot: "."
+
+workflow:
+  definitionFile: pr-task-center-notification-workflow.n8n.json
+  name: pr-task-center-notification-workflow
+  ordId: sap.btpn8n:apiResource:ManagedN8nMcpServer:v1
+
+provides:
+  apis:
+    - name: pr_creation_post_hook
+      path: /pr-task-center-hook-ed512/pr-task-center-notification-workflow/pr-creation-post-hook
+      kind: rest
+      description: Triggered by the agent runtime after a purchase requisition is successfully created; creates a SAP Task Center approval task for the approving manager.
+      ordId: "sap.n8nwfrt:apiResource:pr-task-center-hook-ed512_pr-task-center-notification-workflow.prCreationPostHook:v1"
+    - name: pr_creation_post_hook_mcp_server
+      kind: mcp-server
+      description: MCP server for pr creation post-hook operations
+      ordId: "sap.n8nwfrt:apiResource:pr-task-center-hook-ed512_pr-task-center-notification-workflow.prCreationPostHookMcpServer:v1"
